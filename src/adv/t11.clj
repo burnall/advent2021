@@ -86,5 +86,3 @@
        (find-stable-seating model2)
        (count-taken)))
 
-
-
