@@ -7,12 +7,16 @@
     (->> mask
          (reverse)
          (reduce (fn [{:keys [bit and-mask or-mask]} ch]
-                   (case ch
-                     \0 {:bit (bit-shift-left bit 1), :and-mask and-mask, :or-mask or-mask}
-                     \1 {:bit (bit-shift-left bit 1), :and-mask (bit-or and-mask bit), :or-mask (bit-or or-mask bit)}
-                     \X {:bit (bit-shift-left bit 1), :and-mask (bit-or and-mask bit), :or-mask or-mask})) 
-                 {:bit 1, :and-mask 0, :or-mask 0})
-         (#(dissoc % :bit)))))      
+                   {:bit (bit-shift-left bit 1), 
+                    :and-mask (if (= ch \0) 
+                                and-mask
+                                (bit-or and-mask bit))
+                    :or-mask (if (= ch \1) 
+                               (bit-or or-mask bit)
+                               or-mask)})
+                 {:bit 1, :and-mask 0, :or-mask 0, :raw s})
+         (#(dissoc % :bit))
+         (#(assoc % :raw mask)))))    
 
 (defn parse-mem-cmd [s]
   (let [[_ idx v] (first (re-seq #"mem\[(\d+)\] = (\d+)" s))]
@@ -47,6 +51,45 @@
 (defn solve []
   (->> input
        (run)
+       (vals)
+       (reduce +)))
+
+(defn next-values [vs v]
+  (map (partial bit-or v) vs))
+
+(defn apply-mask2 [v {raw :raw}]
+  (->> raw
+       (reverse)
+       (reduce (fn [{:keys [bit idx vs]} ch]
+                 {:idx (inc idx)
+                  :bit (bit-shift-left bit 1)
+                  :vs (case ch
+                        \0 (if (bit-test v idx) (next-values vs bit) vs)
+                        \1 (next-values vs bit)
+                        \X (concat vs (next-values vs bit)))})
+               {:bit 1, :idx 0, :vs [0]})
+       (:vs)))
+
+(defn memory-change [indexes v]
+  (->> indexes 
+       (map (fn [idx] [idx v]))
+       (into {})))
+
+(defn run2 [cmds]
+  (->> cmds
+       (reduce (fn [agg cmd]
+                 (if (:raw cmd)
+                   (assoc agg :last-mask cmd)
+                   (assoc agg :memory 
+                          (merge (:memory agg)
+                                 (memory-change (apply-mask2 (:idx cmd) (:last-mask agg)) 
+                                                (:v cmd))))))
+               {:memory {}, :last-mask nil})
+       (:memory)))
+
+(defn solve2 []
+  (->> input
+       (run2)
        (vals)
        (reduce +)))
 
