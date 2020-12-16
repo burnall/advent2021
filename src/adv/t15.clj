@@ -28,4 +28,3 @@
 (defn solve []
   (nth (generate input) (dec 30000000)))
 
-                      
